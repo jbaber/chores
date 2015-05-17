@@ -408,7 +408,7 @@ def post_whole_page():
         chore_id=int(gets[2]), name=gets[0],
         worth=gets[1], session=session
     )
-  return '\n'.join(list(complete_page(session)))
+  return '\n'.join(list(complete_page(session, datetime.datetime.now())))
 
 
 # GET version of what REST says should be a POST so that chores can be submitted by a URL
@@ -438,7 +438,7 @@ def post_get():
       dt=datetime.datetime.strptime("{} {}".format(datey, timey), "%Y-%m-%d %H:%M:%S"),
       session=session
     )
-    return '\n'.join(list(complete_page(session)))
+    return '\n'.join(list(complete_page(session, datetime.datetime.now())))
   # If no user_id given in GET, but they've got a cookie with their user_id, use that
   elif 'new_done_chore_chore_id' in gotten:
     user_id = user_id_from_cookie(bottle.request.cookies, session)
@@ -449,7 +449,7 @@ def post_get():
         dt=datetime.datetime.strptime("{} {}".format(datey, timey), "%Y-%m-%d %H:%M:%S"),
         session=session
       )
-      return '\n'.join(list(complete_page(session)))
+      return '\n'.join(list(complete_page(session, datetime.datetime.now())))
     # If no cookie found with a valid id, demand user identify themselves
     bottle.redirect("/#identify_device")
 
