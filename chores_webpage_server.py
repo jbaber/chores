@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-"""chores.py
+"""chores_webpage_server.py
 
 Usage:
   chores.py [<path/to/config_file.yaml>]
@@ -11,12 +11,13 @@ Usage:
 Options:
   -h --help                 Show this screen.
   --version                 Show version.
-  path/to/config_file.yaml  Where preferences are stored [DEFAULT: "~/.config/choresrc.yaml"]
+  path/to/config_file.yaml  Where preferences are stored [DEFAULT: "~/.config/chores_webpage_serverrc.yaml"]
   --config-skeleton         Print out contents of a reasonable config file.
 """
 
+version = '1.0.0'
+
 import bottle
-import requests
 import json
 import datetime
 from datetime import timedelta
@@ -26,11 +27,9 @@ import urllib
 import urlparse
 import qrcode
 import os
-import yaml
 from docopt import docopt
 from furl import furl
-import chores_controller
-import generic_functions
+from chores_lib import chores, done_chores, chore_name, weekly_score, users, winner, delete_done_chore, new_chore, new_done_chore, change_chore, config_file_variables, containing_date_range
 
 ########
 # HTML #
@@ -50,7 +49,7 @@ def chore_form(user, dt=None):
     user['rowid'],
     user['name']
   )
-  for chore in controller.chores():
+  for chore in chores():
     yield '<option name="{0}" value="{0}">{1} ({2})</option>'.format(chore['rowid'], chore['name'], chore['worth'])
   yield '</select>'
   yield '<input type="text" name="new_done_chore_user_id" value="{}" style="visibility:hidden;width:2px;height:2px;"/>'.format(
@@ -68,9 +67,9 @@ def chore_form(user, dt=None):
 
 def done_chores_list_html(user):
   """Generator yielding the done chores with popups for deletion"""
-  for done_chore in controller.done_chores(user_id=user['rowid'], reverse=True):
+  for done_chore in done_chores(user_id=user['rowid'], reverse=True):
     yield '<li data-icon="delete">{0} {2}<a href="/#done_chore_{1}_popup" data-rel="popup"  data-transition="pop"></a></li>'.format(
-      controller.chore_name(done_chore['chore_id']), done_chore['rowid'],
+      chore_name(done_chore['chore_id']), done_chore['rowid'],
       done_chore['datetime'].strftime('%a %-m/%-d'),
     )
     yield """
@@ -87,13 +86,13 @@ def done_chores_list_html(user):
 
 def users_list_div(now, rollover_day, rollover_time):
   """Div containing the list of users"""
-  max_weekly_score = max(controller.weekly_score(
+  max_weekly_score = max(weekly_score(
       user['rowid'], now, rollover_day, rollover_time)
-      for user in controller.users())
+      for user in users())
   max_width_percent = 50
-  for user in controller.users():
+  for user in users():
 
-    user_weekly_score = controller.weekly_score(user['rowid'], now, rollover_day,
+    user_weekly_score = weekly_score(user['rowid'], now, rollover_day,
         rollover_time)
     if max_weekly_score > 0:
       bar_width = max_width_percent * float(user_weekly_score) / float(max_weekly_score)
@@ -117,7 +116,7 @@ def users_list_div(now, rollover_day, rollover_time):
 
 def users_choose_div():
   """Div containing the list of users for setting a cookie"""
-  for user in controller.users():
+  for user in users():
     yield "<div>"
     yield '<p><a href="/?set_user_id_cookie={1}" class="ui-btn ui-shadow ui-corner-all">{0}</a></p>'.format(user['name'], user['rowid'])
     yield "</div>"
@@ -128,7 +127,7 @@ def main_page(now):
   """
   rollover_day = 'Friday'
   rollover_time =  datetime.time(6, 0)
-  date_range = generic_functions.containing_date_range(now, rollover_day, rollover_time)
+  date_range = containing_date_range(now, rollover_day, rollover_time)
   previous_date_range = {
       'begin': date_range['begin'] - relativedelta(weeks=1),
       'end': date_range['end'] - relativedelta(weeks=1),
@@ -141,7 +140,7 @@ def main_page(now):
   date_format = '%a %-m/%-d %-I:%M%P'
   last_week = now - relativedelta(weeks=1)
   next_week = now + relativedelta(weeks=1)
-  last_weeks_winner = controller.winner(last_week, rollover_day, rollover_time)
+  last_weeks_winner = winner(last_week, rollover_day, rollover_time)
   yield '<p>Last weeks winner: {0} with {1} points</p>'.format(
       last_weeks_winner['name'], last_weeks_winner['score'])
   yield '<p>{0} - {1}</p>'.format(date_range['begin'].strftime(date_format),
@@ -179,7 +178,7 @@ def chores_management_page():
     <div data-role="collapsibleset">
     <p><a href="#main_page" class="ui-btn ui-shadow ui-corner-all"><i class="fa fa-arrow-left"></i> Back to Main Page</a></p>
   """
-  for chore in controller.chores():
+  for chore in chores():
     yield """<div data-role="collapsible">
           <h2>{0}</h2>
           <form method="POST" action="./">
@@ -270,7 +269,7 @@ def get_whole_page():
   # Try to make this not cache so that the same chore can be loaded twice in succession
   bottle.response.set_header('Cache-Control', 'max-age=1')
   if bottle.request.query.get('delete_done_chore_id'):
-    controller.delete_done_chore(chore_id=bottle.request.query.get('delete_done_chore_id'))
+    delete_done_chore(chore_id=bottle.request.query.get('delete_done_chore_id'))
   if bottle.request.query.get('delete_user_id'):
     delete_user(user_id=bottle.request.query.get('delete_user_id'))
   if bottle.request.query.get('delete_chore_id'):
@@ -312,7 +311,7 @@ def post_whole_page():
   bottle.response.set_header('Cache-Control', 'max-age=1')
   # Add a new chore
   if bottle.request.forms.get('new_chore_name') and bottle.request.forms.get('new_chore_worth'):
-    controller.new_chore(name=bottle.request.forms.get('new_chore_name'), worth=bottle.request.forms.get('new_chore_worth'))
+    new_chore(name=bottle.request.forms.get('new_chore_name'), worth=bottle.request.forms.get('new_chore_worth'))
   # Add a new user
   if bottle.request.forms.get('new_user_name'):
     new_user(name=bottle.request.forms.get('new_user_name').strip())
@@ -321,7 +320,7 @@ def post_whole_page():
   for get in ('new_done_chore_user_id', 'new_done_chore_date', 'new_done_chore_time', 'new_done_chore_chore_id'):
     gets.append(bottle.request.forms.get(get))
   if gets[0] and gets[1] and gets[2] and gets[3]:
-    controller.new_done_chore(
+    new_done_chore(
       user_id=gets[0],
       chore_id=gets[3],
       dt=datetime.datetime.strptime(
@@ -334,7 +333,7 @@ def post_whole_page():
   for get in ('update_chore_name', 'update_chore_worth', 'update_chore_id'):
     gets.append(bottle.request.forms.get(get))
   if all(gets):
-    controller.change_chore(
+    change_chore(
         chore_id=int(gets[2]), name=gets[0],
         worth=gets[1]
     )
@@ -362,7 +361,7 @@ def post_get():
   else:
     timey = datetime.datetime.now().strftime('%H:%M:%S')
   if ('new_done_chore_user_id' in gotten) and ('new_done_chore_chore_id' in gotten):
-    controller.new_done_chore(
+    new_done_chore(
       user_id=gotten['new_done_chore_user_id'],
       chore_id=gotten['new_done_chore_chore_id'],
       dt=datetime.datetime.strptime("{} {}".format(datey, timey), "%Y-%m-%d %H:%M:%S")
@@ -372,7 +371,7 @@ def post_get():
   elif 'new_done_chore_chore_id' in gotten:
     user_id = user_id_from_cookie(bottle.request.cookies)
     if user_id:
-      controller.new_done_chore(
+      new_done_chore(
         user_id=user_id,
         chore_id=gotten['new_done_chore_chore_id'],
         dt=datetime.datetime.strptime("{} {}".format(datey, timey), "%Y-%m-%d %H:%M:%S")
@@ -393,7 +392,7 @@ def user_id_from_cookie(cookies):
   """
   if 'chores_id' in cookies:
     purported_user_id = int(cookies['chores_id'])
-    if purported_user_id in (user['rowid'] for user in controller.users()):
+    if purported_user_id in (user['rowid'] for user in users()):
       return purported_user_id
   return None
 
@@ -403,98 +402,38 @@ def set_user_id_cookie(response, user_id):
   """
   response.set_cookie("chores_id", str(user_id), expires=datetime.datetime.strptime("3030-01-01", "%Y-%m-%d"))
 
-
-# Data fetching functions with RESTful interface via bottle decorators as needed
-# Try to only implement RESTful things as they are needed by javascript
-
-# Have not removed superfluous bottle REST stuff from below
-
-@bottle.get('/chores/<name>')
-def get_chore(name):
-  chores_controller.get_chore(name, cursor)
-
-@bottle.get('/sparks/<user>')
-def sparks(user):
-  chores_controller.sparks(user, cursor)
-
-# Using post for new
-@bottle.post('/chores/<name>')
-def save_chore(name):
-  chores_controller.save_chore(name, cursor, connection)
-
-@bottle.get('/users/<name>')
-def show_user(name):
-  chores_controller.show_user(name, cursor)
-
-@bottle.put('/users/<name>')
-def save_user(name):
-  chores_controller.save_user(name, cursor, connection)
-
-@bottle.get('/done_chores/<name>')
-def show_user(name):
-  return chores_controller.show_user(name, cursor)
-
-def default_config_dir():
-  return os.path.join(os.path.expanduser("~"), ".config")
-
-def default_config_filename():
-  return os.path.join(default_config_dir(), "choresrc.yaml")
-
-def config_skeleton():
-  return """path_to_database: {0}
-host_name: localhost
-port: 8090
-debug_mode: True""".format(
-    os.path.join(os.path.abspath('.'), 'default_chores.sql'))
-
-def config_file_variables(config_dir, config_filename):
-  # If `config_dir`/`config_filename` doesn't exist yet,
-  # create one with default content.
-  if not os.path.exists(config_filename):
-    print("{} doesn't exist so creating and populating " \
-      "with defaults.".format(config_filename))
-    if not os.path.exists(config_dir):
-      os.makedirs(config_dir)
-    with open(config_filename, 'w') as config_file:
-      config_file.write(config_skeleton())
-
-  # Read variables in from config file
-  with open(config_filename) as config_file:
-    config = yaml.load(config_file)
-    to_return = {
-        item: config[item]
-        for item in
-        ('path_to_database', 'host_name', 'port', 'debug_mode')
-    }
-  
-  return to_return
-
 # Static route to animate.css
 @bottle.get('/<filename:re:.*\.css>')
 def stylesheets(filename):
   return bottle.static_file(filename, root='static/css')
 
+
 if __name__ == '__main__':
 
-  arguments = docopt(__doc__, version='1.0.0')
+  arguments = docopt(__doc__, version=version)
+
+  default_config_skeleton = """host_name: localhost
+port: 8090
+debug_mode: True"""
 
   if arguments['--config-skeleton']:
-    print config_skeleton()
+    print default_config_skeleton
     exit(0)
 
-  if arguments['<path/to/config_file.yaml>'] is None:
-    config_filename = default_config_filename()
-    config_dir = default_config_dir()
-  else:
-    config_filename = os.path.abspath(arguments['<path/to/config_file.yaml>'])
-    config_dir = os.path.dirname(config_filename)
+  default_config_filename = os.path.join(os.path.expanduser("~"),
+      ".config", "chores_website_serverrc.yaml")
 
-  # Fetch variables from config file
-  # (or create one if none exists yet)
-  conf_vars = config_file_variables(config_dir, config_filename)
+  if arguments['<path/to/config_file.yaml>'] is None:
+    config_filename = default_config_filename
+  else:
+    config_filename = os.path.abspath(
+        arguments['<path/to/config_file.yaml>'])
+
+  # Fetch variables from config file (or create one if none
+  # exists yet)
+  conf_vars = config_file_variables(config_filename,
+      default_config_skeleton)
 
   # Database
-  controller = chores_controller.chores_controller(
-      conf_vars['path_to_database'])
   bottle.run(host=conf_vars['host_name'],
       port=conf_vars['port'], debug=conf_vars['debug_mode'])

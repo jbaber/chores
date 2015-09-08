@@ -4,7 +4,7 @@ from sqlalchemy import MetaData, Table, Column, Integer, String, DateTime, \
 from sqlalchemy.sql import select
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import generic_functions
+import chores_lib
 
 class chores_controller():
   def __init__(self, path_to_database):
@@ -49,7 +49,7 @@ class chores_controller():
   def weekly_score(self, user_id, now, rollover_day, rollover_time):
     """Return the total score from the current week for `user_id`"""
 
-    date_range = generic_functions.containing_date_range(now, rollover_day, rollover_time)
+    date_range = chores_lib.containing_date_range(now, rollover_day, rollover_time)
 
     query_string = """
       SELECT sum(chores.worth)
@@ -160,6 +160,24 @@ class chores_controller():
     self.session.delete(self.session.query(Chore).filter_by(rowid=chore_id).one())
     self.session.commit()
 
+  def change_chore(self, chore_id, **kwargs):
+    """Update name and/or worth of chore `chore_id`
+
+    kwargs can contain name= and/or worth=
+    """
+    # if ('name' in kwargs) or ('worth' in kwargs):
+    to_update = {
+      key: value
+      for key, value in kwargs.iteritems()
+      if key in ('worth', 'name')
+    }
+    if to_update:
+      self.session.query(Chore).filter_by(rowid=chore_id).update(
+        to_update)
+      self.session.commit()
+
+
+
 ############
 # Database #
 ############
@@ -238,21 +256,4 @@ def show_user(name, cursor):
 def save_user(name, cursor, connection):
   cursor.execute("INSERT OR REPLACE INTO users (name) VALUES (?)", (name,))
   connection.commit()
-
-def change_chore(chore_id, session, **kwargs):
-  """Update name and/or worth of chore `chore_id`
-
-  kwargs can contain name= and/or worth=
-  """
-  # if ('name' in kwargs) or ('worth' in kwargs):
-  to_update = {
-    key: value
-    for key, value in kwargs.iteritems()
-    if key in ('worth', 'name')
-  }
-  if to_update:
-    session.query(Chore).filter_by(rowid=chore_id).update(
-      to_update)
-    session.commit()
-
 
