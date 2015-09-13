@@ -29,12 +29,13 @@ import qrcode
 import os
 from docopt import docopt
 from furl import furl
-from chores_lib import chores, done_chores, chore_name, weekly_score, users, winner, delete_done_chore, new_chore, new_done_chore, change_chore, config_file_variables, containing_date_range
+from chores_lib.chores_lib import chores, done_chores, chore_name, weekly_score, users, winner, delete_done_chore, new_chore, new_done_chore, change_chore, config_file_variables, containing_date_range
 
 ########
 # HTML #
 ########
 
+html_root = os.path.join('clients', 'web')
 
 def chore_form(user, dt=None):
   """
@@ -290,13 +291,13 @@ def get_whole_page():
 @bottle.get('/lib/themes/<a_css_file>')
 def return_css_file(a_css_file):
   if a_css_file in ("default.css", "default.date.css", "default.time.css"):
-    local_file = "picker/compressed/themes/{}".format(a_css_file)
+    local_file = os.path.join(html_root, 'picker', 'compressed', 'themes', a_css_file)
     with open(local_file) as f:
       return f.read()
 
 @bottle.get('/qrcodes/<chore_id>.png')
 def return_qrcode_png(chore_id):
-  rel_path_to_image = os.path.join('qrcodes', '{0}.png'.format(chore_id))
+  rel_path_to_image = os.path.join(html_root, 'qrcodes', '{0}.png'.format(chore_id))
   if not os.path.isfile(rel_path_to_image):
     qr = qrcode.QRCode()
     qr.add_data(chore_url(chore_id))
@@ -405,11 +406,9 @@ def set_user_id_cookie(response, user_id):
 # Static route to animate.css
 @bottle.get('/<filename:re:.*\.css>')
 def stylesheets(filename):
-  return bottle.static_file(filename, root='static/css')
+  return bottle.static_file(filename, root=os.path.join(html_root,'static', 'css'))
 
-
-if __name__ == '__main__':
-
+def main():
   arguments = docopt(__doc__, version=version)
 
   default_config_skeleton = """host_name: localhost
@@ -437,3 +436,6 @@ debug_mode: True"""
   # Database
   bottle.run(host=conf_vars['host_name'],
       port=conf_vars['port'], debug=conf_vars['debug_mode'])
+
+if __name__ == '__main__':
+  main()

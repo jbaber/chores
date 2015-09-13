@@ -4,7 +4,7 @@ from sqlalchemy import MetaData, Table, Column, Integer, String, DateTime, \
 from sqlalchemy.sql import select
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-import chores_lib
+from chores_lib import chores_lib
 
 class chores_controller():
   def __init__(self, path_to_database):

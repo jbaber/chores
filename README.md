@@ -1,6 +1,6 @@
-# chores.py
+# chores
 
-chores.py lets members of your household register that they have
+These modules let members of your household register that they have
 done chores by visiting a site running on your LAN (e.g. on a
 raspberry pi in a cabinet somewhere on your Wifi) with their
 phones or desktop computers.  A running weekly score is kept
@@ -10,12 +10,17 @@ QR Codes are provided that let chore registration happen by
 just snapping a picture.  You can also use the QR code addresses
 to make tapping an NFC tag register a done chore.
 
+# TO RUN
+
+- `python -Bm chores_api.chores_api` starts the webserver that talks to the database.  By default, it listens on port 8190.
+- `python -Bm clients.web.chores_web_server` starts the webserver that hosts the web interface for updating chores.  By default, it listens on port 8180.
+
 # This is still a very rough draft.
 
 # Issues
 
 In ubuntu 14.04 LTS (Trusty Tahr), the version of `six` that comes
-with python is not recent enough for `furl` to work and running `chores.py`
+with python is not recent enough for `furl` to work and running `chores_webpage_server.py`
 gets you
 
 ```
